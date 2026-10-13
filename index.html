@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Babylon.js - Space Skybox with Sun & Earth Orbit</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #000;
+      }
+      #renderCanvas {
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+
+      #objectSelector {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 100;
+        padding: 5px;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="renderCanvas"></canvas>
+
+    <select id="objectSelector" onchange="onObjectChange(this.value)">
+      <option value="sun">Mặt Trời</option>
+      <option value="earth">Trái Đất</option>
+    </select>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <!-- Thư viện đọc file GLB/GLTF -->
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script>
+      let camera = null;
+      let sunModel = null;
+      let earthModel = null;
+      const onObjectChange = (selectedObject) => {
+        if (selectedObject === "sun" && sunModel) {
+          camera.setTarget(sunModel.position);
+        } else if (selectedObject === "earth" && earthModel) {
+          camera.setTarget(earthModel.position);
+        }
+      };
+
+      const canvas = document.getElementById("renderCanvas");
+      const engine = new BABYLON.Engine(canvas, true);
+
+      const createScene = function () {
+        const scene = new BABYLON.Scene(engine);
+        scene.clearColor = new BABYLON.Color3(0, 0, 0);
+
+        // 1. Camera quan sát xoay quanh đối tượng
+        camera = new BABYLON.ArcRotateCamera(
+          "camera",
+          0,
+          Math.PI / 3,
+          25000,
+          null,
+          scene,
+        );
+        camera.attachControl(canvas, true);
+        camera.maxZ = 1000000;
+        camera.lowerRadiusLimit = 100;
+        camera.upperRadiusLimit = 500000;
+        camera.wheelDeltaPercentage = 0.05;
+
+        // Ánh sáng môi trường nhẹ trong vũ trụ
+        const ambientLight = new BABYLON.HemisphericLight(
+          "ambientLight",
+          new BABYLON.Vector3(0, 1, 0),
+          scene,
+        );
+        ambientLight.intensity = 0.05;
+        ambientLight.diffuse = new BABYLON.Color3(0.1, 0.15, 0.3);
+        ambientLight.groundColor = new BABYLON.Color3(0, 0, 0);
+
+        // 2. Skybox không gian vũ trụ
+        const spaceSkybox = BABYLON.MeshBuilder.CreateSphere(
+          "spaceSkybox",
+          { segments: 32, diameter: 1000000 },
+          scene,
+        );
+        spaceSkybox.infiniteDistance = true;
+
+        const spaceMaterial = new BABYLON.StandardMaterial("spaceMat", scene);
+        spaceMaterial.backFaceCulling = false;
+        spaceMaterial.disableLighting = true;
+
+        const spaceTexture = new BABYLON.Texture(
+          "./universe_texture.png",
+          scene,
+          false,
+          false,
+          BABYLON.Texture.BILINEAR_SAMPLINGMODE,
+          () => {},
+          () => {
+            console.log("Texture loaded error!");
+          },
+        );
+
+        spaceMaterial.emissiveTexture = spaceTexture;
+        spaceSkybox.material = spaceMaterial;
+
+        // 3. Nguồn sáng điểm phát ra từ tâm Mặt Trời (0, 0, 0)
+        const sunLight = new BABYLON.PointLight(
+          "sunLight",
+          BABYLON.Vector3.Zero(),
+          scene,
+        );
+        sunLight.intensity = 20;
+        sunLight.range = 1000000;
+        sunLight.diffuse = new BABYLON.Color3(1, 1, 1);
+        sunLight.specular = new BABYLON.Color3(1, 1, 1);
+
+        // Hiệu ứng phát sáng hào quang (Bloom/Glow)
+        const gl = new BABYLON.GlowLayer("glow", scene);
+        gl.intensity = 0.8;
+
+        // 4. Model Mặt Trời tại tâm (0, 0, 0)
+        BABYLON.SceneLoader.ImportMesh(
+          "",
+          "./models/",
+          "sun.glb",
+          scene,
+          function (meshes) {
+            sunModel = meshes[0];
+            sunModel.position = BABYLON.Vector3.Zero();
+            sunModel.scaling = new BABYLON.Vector3(10, 10, 10);
+
+            camera.setTarget(sunModel.position);
+
+            // Loại trừ mesh Mặt Trời khỏi nguồn sáng
+            meshes.forEach((mesh) => {
+              sunLight.excludedMeshes.push(mesh);
+            });
+          },
+        );
+
+        // 5. Model Trái Đất
+        const orbitRadius = 100000;
+        let earthOrbitAngle = 0;
+
+        BABYLON.SceneLoader.ImportMesh(
+          "",
+          "./models/",
+          "earth.glb",
+          scene,
+          function (meshes) {
+            earthModel = meshes[0];
+            earthModel.position = new BABYLON.Vector3(orbitRadius, 0, 0);
+
+            // Góc nghiêng trục tự nhiên của Trái Đất (~23.4 độ)
+            earthModel.rotate(
+              BABYLON.Axis.Z,
+              BABYLON.Tools.ToRadians(23.4),
+              BABYLON.Space.WORLD,
+            );
+            const allMeshes = earthModel.getChildMeshes
+              ? earthModel.getChildMeshes()
+              : meshes;
+
+            allMeshes.forEach((mesh) => {
+              if (
+                mesh.getTotalVertices &&
+                mesh.getTotalVertices() > 0 &&
+                mesh.material
+              ) {
+                const baseTexture =
+                  mesh.material.albedoTexture ||
+                  mesh.material.diffuseTexture ||
+                  (mesh.material.getActiveTextures
+                    ? mesh.material.getActiveTextures()[0]
+                    : null);
+
+                const stdMat = new BABYLON.StandardMaterial(
+                  mesh.name + "_fixedMat",
+                  scene,
+                );
+
+                if (baseTexture) {
+                  stdMat.diffuseTexture = baseTexture;
+                }
+
+                // Cường độ phản quang bề mặt
+                stdMat.diffuseColor = new BABYLON.Color3(3, 3, 3);
+                stdMat.specularColor = new BABYLON.Color3(0, 0, 0);
+                stdMat.specularPower = 0;
+                stdMat.emissiveColor = new BABYLON.Color3(0, 0, 0);
+
+                mesh.material = stdMat;
+              }
+            });
+          },
+        );
+
+        // ==================== CÀI ĐẶT TỐC ĐỘ GỐC MẶT TRỜI ====================
+        // Gốc chuẩn cố định: Tốc độ tự quay của Mặt Trời mỗi frame
+        // Tăng/giảm số này để tăng/giảm tốc độ toàn bộ hệ thống
+        const SUN_SPIN_SPEED = 0.001;
+
+        // Trái Đất tự quay quanh trục (1 ngày so với ~27 ngày của Mặt Trời -> gấp 27 lần)
+        const EARTH_SPIN_SPEED = -SUN_SPIN_SPEED * 27.0;
+
+        // Trái Đất bay quanh Mặt Trời (365.25 ngày so với 27 ngày -> chậm hơn 13.528 lần)
+        const EARTH_ORBIT_SPEED = SUN_SPIN_SPEED / (365.25 / 27.0);
+        // ====================================================================
+
+        // 6. Cập nhật chuyển động mỗi khung hình
+        scene.registerBeforeRender(function () {
+          // Xoay nhẹ nền sao vũ trụ
+          spaceSkybox.rotation.y += 0.00005;
+
+          // 1. Mặt Trời tự quay quanh trục (gốc chuẩn)
+          if (sunModel) {
+            sunModel.rotate(
+              BABYLON.Axis.Y,
+              SUN_SPIN_SPEED,
+              BABYLON.Space.LOCAL,
+            );
+          }
+
+          // 2. Trái Đất vận động theo tỉ lệ chuẩn từ Mặt Trời
+          if (earthModel) {
+            // Trái Đất tự quay quanh trục nghiêng
+            earthModel.rotate(
+              BABYLON.Axis.Y,
+              EARTH_SPIN_SPEED,
+              BABYLON.Space.LOCAL,
+            );
+
+            // Trái Đất bay trên quỹ đạo tròn quanh Mặt Trời
+            earthOrbitAngle += EARTH_ORBIT_SPEED;
+            earthModel.position.x = orbitRadius * Math.cos(earthOrbitAngle);
+            earthModel.position.z = orbitRadius * Math.sin(earthOrbitAngle);
+          }
+        });
+
+        return scene;
+      };
+
+      const scene = createScene();
+
+      engine.runRenderLoop(function () {
+        scene.render();
+      });
+
+      window.addEventListener("resize", function () {
+        engine.resize();
+      });
+    </script>
+  </body>
+</html>
