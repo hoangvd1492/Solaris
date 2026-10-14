@@ -35,9 +35,11 @@
     <canvas id="renderCanvas"></canvas>
 
     <select id="objectSelector" onchange="onObjectChange(this.value)">
-      <option value="sun">Mặt Trời</option>
-      <option value="earth">Trái Đất</option>
-      <option value="moon">Mặt Trăng</option>
+      <option value="sun">Sun</option>
+      <option value="earth">Earth</option>
+      <option value="moon">Moon</option>
+      <option value="mercury">Mercury</option>
+      <option value="venus">Venus</option>
     </select>
 
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
@@ -48,6 +50,8 @@
       let sunModel = null;
       let earthModel = null;
       let moonModel = null;
+      let mercuryModel = null;
+      let venusModel = null;
       const onObjectChange = (selectedObject) => {
         if (selectedObject === "sun" && sunModel) {
           camera.setTarget(sunModel.position);
@@ -55,6 +59,10 @@
           camera.setTarget(earthModel.position);
         } else if (selectedObject === "moon" && moonModel) {
           camera.setTarget(moonModel.position);
+        } else if (selectedObject === "mercury" && mercuryModel) {
+          camera.setTarget(mercuryModel.position);
+        } else if (selectedObject === "venus" && venusModel) {
+          camera.setTarget(venusModel.position);
         }
       };
 
@@ -252,6 +260,98 @@
           },
         );
 
+        BABYLON.SceneLoader.ImportMesh(
+          "",
+          "./models/",
+          "mercury.glb",
+          scene,
+          function (meshes) {
+            mercuryModel = meshes[0];
+            mercuryModel.position = new BABYLON.Vector3(
+              mercuryOrbitRadius,
+              0,
+              0,
+            );
+            mercuryModel.scaling = new BABYLON.Vector3(0.38, 0.38, 0.38);
+
+            meshes.forEach((mesh) => {
+              if (
+                mesh.getTotalVertices &&
+                mesh.getTotalVertices() > 0 &&
+                mesh.material
+              ) {
+                const baseTexture =
+                  mesh.material.albedoTexture ||
+                  mesh.material.diffuseTexture ||
+                  (mesh.material.getActiveTextures
+                    ? mesh.material.getActiveTextures()[0]
+                    : null);
+
+                const stdMat = new BABYLON.StandardMaterial(
+                  mesh.name + "_fixedMat",
+                  scene,
+                );
+
+                if (baseTexture) {
+                  stdMat.diffuseTexture = baseTexture;
+                }
+
+                // Cường độ phản quang bề mặt
+                stdMat.diffuseColor = new BABYLON.Color3(3, 3, 3);
+                stdMat.specularColor = new BABYLON.Color3(0, 0, 0);
+                stdMat.specularPower = 0;
+                stdMat.emissiveColor = new BABYLON.Color3(0, 0, 0);
+
+                mesh.material = stdMat;
+              }
+            });
+          },
+        );
+
+        BABYLON.SceneLoader.ImportMesh(
+          "",
+          "./models/",
+          "venus.glb",
+          scene,
+          function (meshes) {
+            venusModel = meshes[0];
+            venusModel.position = new BABYLON.Vector3(venusOrbitRadius, 0, 0);
+            venusModel.scaling = new BABYLON.Vector3(0.95, 0.95, 0.95);
+
+            meshes.forEach((mesh) => {
+              if (
+                mesh.getTotalVertices &&
+                mesh.getTotalVertices() > 0 &&
+                mesh.material
+              ) {
+                const baseTexture =
+                  mesh.material.albedoTexture ||
+                  mesh.material.diffuseTexture ||
+                  (mesh.material.getActiveTextures
+                    ? mesh.material.getActiveTextures()[0]
+                    : null);
+
+                const stdMat = new BABYLON.StandardMaterial(
+                  mesh.name + "_fixedMat",
+                  scene,
+                );
+
+                if (baseTexture) {
+                  stdMat.diffuseTexture = baseTexture;
+                }
+
+                // Cường độ phản quang bề mặt
+                stdMat.diffuseColor = new BABYLON.Color3(3, 3, 3);
+                stdMat.specularColor = new BABYLON.Color3(0, 0, 0);
+                stdMat.specularPower = 0;
+                stdMat.emissiveColor = new BABYLON.Color3(0, 0, 0);
+
+                mesh.material = stdMat;
+              }
+            });
+          },
+        );
+
         // ==================== CÀI ĐẶT TỐC ĐỘ GỐC MẶT TRỜI ====================
         // Gốc chuẩn cố định: Tốc độ tự quay của Mặt Trời mỗi frame
         // Tăng/giảm số này để tăng/giảm tốc độ toàn bộ hệ thống
@@ -277,6 +377,26 @@
 
         // Mặt Trăng tự quay quanh trục (Bị khóa thủy triều - tidal locking nên chu kỳ tự quay = chu kỳ quỹ đạo)
         const MOON_SPIN_SPEED = MOON_ORBIT_SPEED;
+
+        let mercuryOrbitAngle = 0;
+
+        const mercuryOrbitRadius = orbitRadius / 2.5; // Khoảng cách quỹ đạo Sao Thủy so với Trái Đất
+        // Sao Thủy tự quay quanh trục (58.65 ngày so với ~27 ngày của Mặt Trời -> chậm hơn khoảng 2.17 lần)
+        const MERCURY_SPIN_SPEED = -SUN_SPIN_SPEED / (58.65 / 27.0);
+
+        // Sao Thủy bay quanh Mặt Trời (87.97 ngày so với 27 ngày của Mặt Trời)
+        const MERCURY_ORBIT_SPEED = SUN_SPIN_SPEED / (87.97 / 27.0);
+
+        // --- SAO KIM (VENUS) ---
+
+        let venusOrbitAngle = 0;
+        const venusOrbitRadius = orbitRadius / 1.5; // Khoảng cách quỹ đạo Sao Kim so với Trái Đất
+        // Sao Kim tự quay ngược chiều quanh trục (243 ngày so với ~27 ngày của Mặt Trời)
+        // Dùng dấu dương vì Sao Kim quay nghịch chiều (retrograde rotation) so với Trái Đất và Mặt Trời
+        const VENUS_SPIN_SPEED = SUN_SPIN_SPEED / (243.0 / 27.0);
+
+        // Sao Kim bay quanh Mặt Trời (224.7 ngày so với 27 ngày của Mặt Trời)
+        const VENUS_ORBIT_SPEED = SUN_SPIN_SPEED / (224.7 / 27.0);
 
         // 6. Cập nhật chuyển động mỗi khung hình
         scene.registerBeforeRender(function () {
@@ -324,6 +444,38 @@
               earthModel.position.z +
               moonOrbitRadius * Math.sin(moonOrbitAngle);
             moonModel.position.y = earthModel.position.y;
+          }
+
+          if (mercuryModel) {
+            // Sao Thủy tự quay quanh trục
+            mercuryModel.rotate(
+              BABYLON.Axis.Y,
+              MERCURY_SPIN_SPEED,
+              BABYLON.Space.LOCAL,
+            );
+
+            // Sao Thủy bay quanh quỹ đạo của Mặt Trời
+            mercuryOrbitAngle += MERCURY_ORBIT_SPEED;
+            mercuryModel.position.x =
+              mercuryOrbitRadius * Math.cos(mercuryOrbitAngle);
+            mercuryModel.position.z =
+              mercuryOrbitRadius * Math.sin(mercuryOrbitAngle);
+          }
+
+          if (venusModel) {
+            // Sao Kim tự quay quanh trục
+            venusModel.rotate(
+              BABYLON.Axis.Y,
+              VENUS_SPIN_SPEED,
+              BABYLON.Space.LOCAL,
+            );
+
+            // Sao Kim bay quanh quỹ đạo của Mặt Trời
+            venusOrbitAngle += VENUS_ORBIT_SPEED;
+            venusModel.position.x =
+              venusOrbitRadius * Math.cos(venusOrbitAngle);
+            venusModel.position.z =
+              venusOrbitRadius * Math.sin(venusOrbitAngle);
           }
         });
 
