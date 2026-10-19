@@ -53,16 +53,32 @@
       let mercuryModel = null;
       let venusModel = null;
       const onObjectChange = (selectedObject) => {
+        let targetModel = null;
+        let targetRadius = 25000; // Khoảng cách mặc định
+
         if (selectedObject === "sun" && sunModel) {
-          camera.setTarget(sunModel.position);
+          targetModel = sunModel;
+          targetRadius = 25000; // Mặt Trời lớn nên đứng xa hơn một chút
         } else if (selectedObject === "earth" && earthModel) {
-          camera.setTarget(earthModel.position);
+          targetModel = earthModel;
+          targetRadius = 8000; // Trái Đất nhỏ hơn nên lại gần hơn
         } else if (selectedObject === "moon" && moonModel) {
-          camera.setTarget(moonModel.position);
+          targetModel = moonModel;
+          targetRadius = 2000; // Mặt Trăng rất nhỏ nên cần lại gần sát
         } else if (selectedObject === "mercury" && mercuryModel) {
-          camera.setTarget(mercuryModel.position);
+          targetModel = mercuryModel;
+          targetRadius = 3000; // Sao Thủy nhỏ
         } else if (selectedObject === "venus" && venusModel) {
-          camera.setTarget(venusModel.position);
+          targetModel = venusModel;
+          targetRadius = 6000; // Sao Kim tương đương Trái Đất
+        }
+
+        if (targetModel && camera) {
+          // Gán mục tiêu mới cho camera
+          camera.setTarget(targetModel.position);
+
+          // Cập nhật lại khoảng cách (radius) của ArcRotateCamera tới đối tượng
+          camera.radius = targetRadius;
         }
       };
 
